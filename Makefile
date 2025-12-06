@@ -6,14 +6,8 @@ PID_FILE = .uvicorn.pid
 install: 
 	pip install -r requirements.txt 
 
-runPayment: 
-	python -m uvicorn $(PaymentServiceAPP) --host 0.0.0.0 --port 8000 --reload 
-
 runClubs: 
-	python -m uvicorn $(ClubServiceAPP) --host 0.0.0.0 --port 8001 --reload 
-
-runUsers: 
-	python -m uvicorn $(UserServiceAPP) --host 0.0.0.0 --port 8002 --reload 
+	python -m uvicorn $(ClubServiceAPP) --host 0.0.0.0 --port 8002 --reload 
 
 test: 
 	cd UserService && python -m pytest -q
