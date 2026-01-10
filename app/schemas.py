@@ -8,7 +8,6 @@ DescriptionStr = Annotated[str, StringConstraints(min_length=10, max_length=255)
 MembershipCostInt =  Annotated[int, Ge(0), Le(150)]
 
 #----------- Club Schemas --------------
-
 class ClubCreate(BaseModel):
     name: ClubNameStr
     description: DescriptionStr
@@ -30,7 +29,6 @@ class ClubUpdate(BaseModel):
     membership_cost: Optional[int] = None
 
 #---------- Membership Schemas ----------
-
 class MembershipCreate(BaseModel):
     user_id: int
     club_id: int
