@@ -2,193 +2,176 @@ from fastapi import FastAPI, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select 
 from sqlalchemy.exc import IntegrityError 
- 
-from .database import engine, SessionLocal 
-from .models import Base, UserDB, AddressDB
-from .schemas import (UserCreate, 
-                      UserRead, 
-                      UserUpdate,
-                      AddressCreate,
-                      AddressRead,
-                      AddressUpdate,
-                      AddressReadWithOwner)
+from contextlib import asynccontextmanager 
+from fastapi.middleware.cors import CORSMiddleware 
+from .database import engine, get_db 
+from .models import Base, ClubDB, MembershipDB
+from .schemas import (
+    ClubCreate,
+    ClubRead,
+    ClubUpdate,
+    MembershipCreate,
+    MembershipRead,
+    MembershipUpdate,
+    MembershipReadWithClub,
+)
 
-app = FastAPI()
-Base.metadata.create_all(bind=engine)
+#Replacing @app.on_event("startup") 
+@asynccontextmanager 
+async def lifespan(app: FastAPI): 
+    Base.metadata.create_all(bind=engine)    
+    yield 
+ 
+app = FastAPI(lifespan=lifespan) 
+ 
+# CORS (add this block) 
+app.add_middleware( 
+    CORSMiddleware, 
+    allow_origins=["*"],   # dev-friendly; tighten in prod 
+    allow_methods=["*"], 
+    allow_headers=["*"], 
+) 
 
 def commit_or_rollback(db: Session, error_msg: str):
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=409, detail=error_msg)
+        raise HTTPException(status_code=409, detail=error_msg) #Duplicate info
 
-def get_db(): 
-    db = SessionLocal() 
-    try: 
-        yield db 
-    finally: 
-        db.close() 
-
-#------------- Health Check ---------------------
+# ------------- Health Check ---------------------
 @app.get("/health")
-def Health_Check():
-    return {"status": "ok"} 
+def health_check():
+    return {"status": "ok", "service": "clubs"}
 
-#------------- Users Endpoints ------------------
+#--------------- Club Endpoints ------------------
 
-# GET: All Users, User by ID
-@app.get("/api/users", response_model=list[UserRead]) 
-def list_users(db: Session = Depends(get_db)): 
-    stmt = select(UserDB).order_by(UserDB.id) 
+# GET: All Clubs, Clubs by ID
+@app.get("/api/clubs", response_model=list[ClubRead]) 
+def List_All_Clubs(db: Session = Depends(get_db)): 
+    stmt = select(ClubDB).order_by(ClubDB.id) 
     return list(db.execute(stmt).scalars()) 
  
-@app.get("/api/users/{user_id}", response_model=UserRead) 
-def get_user(user_id: int, db: Session = Depends(get_db)): 
-    user = db.get(UserDB, user_id) 
-    if not user: 
-        raise HTTPException(status_code=404, detail="User not found") 
-    return user 
- 
- #POST new user
-@app.post("/api/users", response_model=UserRead, status_code=status.HTTP_201_CREATED) 
-def Add_New_User(payload: UserCreate, db: Session = Depends(get_db)): 
-    user = UserDB(**payload.model_dump()) 
-    db.add(user) 
-    try: 
-        db.commit() 
-        db.refresh(user) 
-    except IntegrityError: 
-        db.rollback() 
-        raise HTTPException(status_code=409, detail="User already exists") 
-    return user 
+@app.get("/api/clubs/{club_id}", response_model=ClubRead) 
+def Get_Club_By_ID(club_id: int, db: Session = Depends(get_db)): 
+    club = db.get(ClubDB, club_id) 
+    if not club: 
+        raise HTTPException(status_code=404, detail="Club not found") 
+    return club 
 
-#PATCH user information - updates only what attributes have been changed 
-@app.patch("/api/users/{user_id}", response_model=UserRead)
-def Update_Partial_User_Information(user_id: int, payload: UserUpdate, db: Session = Depends(get_db)):
-    user = db.get(UserDB, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+#POST a new club
+@app.post("/api/clubs", response_model=ClubRead, status_code=status.HTTP_201_CREATED)
+def create_club(payload: ClubCreate, db: Session = Depends(get_db)):
+    club = ClubDB(**payload.model_dump())
+    db.add(club)
+    commit_or_rollback(db, "Club with this name or description may already exist")
+    db.refresh(club)
+    return club
 
-    updates = payload.model_dump(exclude_unset=True, exclude_none=True) #exclude unset only changes the fields that have been updated 
-    for field, value in updates.items():
-        setattr(user, field, value)
+#PATCH Club Info
+@app.patch("/api/clubs/{club_id}", response_model=ClubRead)
+def Update_Club_Info(club_id: int,payload: ClubUpdate,db: Session = Depends(get_db)):
+    club = db.get(ClubDB, club_id)
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
 
-    try:
-        db.commit()
-        db.refresh(user)
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="User update failed (unique constraint)")
-    return user
+    update_data = payload.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(club, field, value)
 
-#PUT user information - updates all user attributes
-@app.put("/api/users/{user_id}", response_model=UserRead)
-def Update_Full_User_Information(user_id: int, payload: UserCreate, db: Session = Depends(get_db)):
-    user = db.get(UserDB, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    commit_or_rollback(db, "Club update failed, maybe duplicate name or description")
+    db.refresh(club)
+    return club
+
+#PUT club information - updates all club attributes
+@app.put("/api/clubs/{club_id}", response_model=ClubRead)
+def Update_Full_Club_Info(club_id: int, payload: ClubCreate, db: Session = Depends(get_db)):
+    club = db.get(ClubDB, club_id)
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
+    
     for field_name, field_value in payload.model_dump().items():
-        setattr(user, field_name, field_value)
-    try:
-        db.commit()
-        db.refresh(user)
-    except IntegrityError:
-        db.rollback()
-        # email, phone unique conflict, etc.
-        raise HTTPException(status_code=409, detail="User already exists")
-    return user
+        setattr(club, field_name, field_value)
 
-# DELETE a user by ID (triggers ORM cascade -> deletes their projects too)
-@app.delete("/api/users/{user_id}", status_code=204)
-def Delete_User(user_id: int, db: Session = Depends(get_db)) -> Response:
-    user = db.get(UserDB, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    commit_or_rollback(db, "Club update failed, maybe duplicate name or descripion")
+    return club
 
-    db.delete(user)  # <-- triggers cascade="all, delete-orphan" on projects
+
+#DELETE Club 
+@app.delete("/api/clubs/{club_id}", status_code=status.HTTP_204_NO_CONTENT)
+def Delete_Club(club_id: int, db: Session = Depends(get_db)) -> Response:
+    club = db.get(ClubDB, club_id)
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
+
+    db.delete(club)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-#------------- Address Endpoints ------------------
-#List Addresses
-@app.get("/api/addresses", response_model=list[AddressRead])
-def list_addresses(db: Session = Depends(get_db)):
-    stmt = select(AddressDB).order_by(AddressDB.id)
-    return db.execute(stmt).scalars().all()
 
-#Get user address
-@app.get("/api/addresses/{address_id}", response_model=AddressReadWithOwner)
-def Get_User_Address(address_id: int, db: Session = Depends(get_db)):
-    stmt = (
-        select(AddressDB)
-        .where(AddressDB.id == address_id)
-        .options(selectinload(AddressDB.resident))
+# GET: All Memberships
+@app.get("/api/memberships", response_model=list[MembershipRead]) 
+def List_All_Memberships(db: Session = Depends(get_db)): 
+    stmt = select(MembershipDB).order_by(MembershipDB.id) 
+    return list(db.execute(stmt).scalars()) 
+
+#POST new membership
+@app.post("/api/memberships",response_model=MembershipReadWithClub,status_code=status.HTTP_201_CREATED)
+def create_membership(payload: MembershipCreate, db: Session = Depends(get_db)):
+    # Ensure the club exists
+    club = db.get(ClubDB, payload.club_id)
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
+
+    # Optional: prevent duplicate memberships for same user & club
+    existing_stmt = select(MembershipDB).where(
+        MembershipDB.user_id == payload.user_id,
+        MembershipDB.club_id == payload.club_id,
     )
-    addr = db.execute(stmt).scalar_one_or_none()
-    if not addr:
-        raise HTTPException(status_code=404, detail="Address not found")
-    return addr
+    existing = db.scalar(existing_stmt)
+    if existing:
+        raise HTTPException(status_code=409, detail="User is already a member of this club")
 
-@app.post("/api/addresses", response_model=AddressRead, status_code=201)
-def Add_New_Address(address: AddressCreate, db: Session = Depends(get_db)):
-    user = db.get(UserDB, address.resident_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    membership = MembershipDB(**payload.model_dump())
+    db.add(membership)
+    commit_or_rollback(db, "Could not create membership")
 
-    addr = AddressDB(
-        address_line1 = address.address_line1,
-        address_line2 = address.address_line2,
-        apartment_block_number = address.apartment_block_number,
-        county = address.county,
-        post_code = address.post_code,
-        resident_id = address.resident_id
-    )
-    db.add(addr)
-    commit_or_rollback(db, "Address creation failed")
-    db.refresh(addr)
-    return addr
+    # Reload with club relationship
+    db.refresh(membership)
+    membership = db.scalar(select(MembershipDB).options(selectinload(MembershipDB.club)).where(MembershipDB.id == membership.id))
+    return membership
 
-@app.patch("/api/addresses/{address_id}", response_model=AddressRead)
-def update_project(project_id: int, payload: AddressUpdate, db: Session = Depends(get_db)):
-    address = db.get(AddressDB, project_id)
-    if not address:
-        raise HTTPException(status_code=404, detail="Address not found")
+#PATC Membership info 
+@app.patch("/api/memberships/{membership_id}", response_model=MembershipReadWithClub)
+def update_membership(membership_id: int,payload: MembershipUpdate,db: Session = Depends(get_db)):
 
-    updates = payload.model_dump(exclude_unset=True, exclude_none=True) #exclude unset only changes the fields that have been updated 
-    for field, value in updates.items():
-        setattr(address, field, value)
+    membership = db.get(MembershipDB, membership_id)
+    if not membership:
+        raise HTTPException(status_code=404, detail="Membership not found")
 
-    try:
-        db.commit()
-        db.refresh(address)
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="Address update failed (unique constraint)")
-    return address
+    update_data = payload.model_dump(exclude_unset=True)
 
-@app.put("/api/addresses/{address_id}", response_model=AddressRead)
-def update_project(project_id: int, payload: AddressCreate, db: Session = Depends(get_db)):
-    address = db.get(AddressDB, project_id)
-    if not address:
-        raise HTTPException(status_code=404, detail="Address not found")
-    for field_name, field_value in payload.model_dump().items():
-        setattr(address, field_name, field_value)
-    try:
-        db.commit()
-        db.refresh(address)
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="Address already exists")
-    return address
+    # If club_id is changed, ensure the new club exists
+    if "club_id" in update_data:
+        new_club = db.get(ClubDB, update_data["club_id"])
+        if not new_club:
+            raise HTTPException(status_code=404, detail="Club not found")
 
-# DELETE a user by ID (triggers ORM cascade -> deletes their projects too)
-@app.delete("/api/adrdesses/{adrdess_id}", status_code=204)
-def Delete_Address(address_id: int, db: Session = Depends(get_db)) -> Response:
-    address = db.get(AddressDB, address_id)
-    if not address:
-        raise HTTPException(status_code=404, detail="Address not found")
+    for field, value in update_data.items():
+        setattr(membership, field, value)
 
-    db.delete(address)  # <-- triggers cascade="all, delete-orphan" on projects
+    commit_or_rollback(db, "Could not update membership")
+
+    membership = db.scalar(select(MembershipDB).options(selectinload(MembershipDB.club)).where(MembershipDB.id == membership_id))
+    return membership
+
+ #DELETE Membership
+@app.delete("/api/memberships/{membership_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_membership(membership_id: int, db: Session = Depends(get_db)) -> Response:
+    membership = db.get(MembershipDB, membership_id)
+    if not membership:
+        raise HTTPException(status_code=404, detail="Membership not found")
+
+    db.delete(membership)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

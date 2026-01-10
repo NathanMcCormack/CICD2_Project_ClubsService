@@ -1,84 +1,49 @@
 from typing import Annotated, Optional, List
 from annotated_types import Ge, Le
-from pydantic import BaseModel, EmailStr, Field, StringConstraints, ConfigDict 
- 
-NameStr = Annotated[str, StringConstraints(min_length=2, max_length=50)] 
-StudentId = Annotated[str, StringConstraints(pattern=r"^G00\d{6}")] 
-AgeInt = Annotated[int, Ge(16), Le(100)]
-PhoneStr = Annotated[str, StringConstraints(pattern=r'^\+353\s0[0-9]{2}\s[0-9]{3}\s[0-9]{4}$')] #Irish phone number format: "+353 0xx xxx xxxx"
-AddrStr = Annotated[str, StringConstraints(min_length=8, max_length=100)]
-AptInt = Annotated[int, Ge(0), Le(999999)]
-CountyStr = Annotated[str, StringConstraints(min_length=4, max_length=15)] 
-PostCodeStr = Annotated[str, StringConstraints(pattern=r'^[A-Z0-9]{3}\s?[A-Z0-9]{4}$')] # e.g. "D02 X285" or "A65F4E2"
- 
+from pydantic import BaseModel, Field, StringConstraints, ConfigDict 
 
- #----------- User Schemas -------------
-class UserCreate(BaseModel): 
-    first_name: NameStr 
-    last_name: NameStr #use the same annotation for names
-    email: EmailStr
-    phone: PhoneStr 
-    age: AgeInt 
-    student_id: StudentId 
- 
-class UserRead(BaseModel): 
-    id: int 
-    first_name: NameStr 
-    last_name: NameStr 
-    email: EmailStr
-    phone: PhoneStr 
-    age: AgeInt 
-    student_id: StudentId 
- 
+ClubNameStr = Annotated[str, StringConstraints(min_length=3, max_length=100)]
+CategoryStr = Annotated[str,StringConstraints(pattern=r"^(club|society)$", to_lower=True,)] #only allows club or society, to_lower changes any input to  lower case
+DescriptionStr = Annotated[str, StringConstraints(min_length=10, max_length=255)]
+MembershipCostInt =  Annotated[int, Ge(0), Le(150)]
+
+#----------- Club Schemas --------------
+
+class ClubCreate(BaseModel):
+    name: ClubNameStr
+    description: DescriptionStr
+    category: CategoryStr
+    membership_cost: MembershipCostInt
+
+class ClubRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    id:int
+    name: ClubNameStr
+    description: DescriptionStr
+    category: CategoryStr
+    membership_cost: MembershipCostInt    
 
-class UserUpdate(BaseModel): #Optional is for PATCH endpoints
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    age: Optional[int] = None
-    student_id: Optional[str] = None
+class ClubUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    membership_cost: Optional[int] = None
 
+#---------- Membership Schemas ----------
 
-#-------------- Address Schemas ------------------
-class AddressRead(BaseModel):
+class MembershipCreate(BaseModel):
+    user_id: int
+    club_id: int
+
+class MembershipRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
-    address_line1: AddrStr
-    address_line2: Optional[AddrStr] = None
-    apartment_block_number: Optional[AptInt] = None
-    county: CountyStr
-    post_code: PostCodeStr
-    resident_id: int
+    user_id: int
+    club_id: int
 
-class UserReadWithAddress(UserRead):
-    adresses: List[AddressRead] = []
+class MembershipUpdate(BaseModel):
+    user_id: Optional[int] = None
+    club_id: Optional[int] = None
 
-class AddressReadWithOwner(AddressRead):
-    resident: Optional["UserRead"] = None # use selectinload(ProjectDB.owner) when querying
-
-class AddressCreate(BaseModel): 
-    address_line1: AddrStr
-    address_line2: Optional[AddrStr] = None
-    apartment_block_number: Optional[AptInt] = None
-    county: CountyStr
-    post_code: PostCodeStr
-    resident_id: int
-
-# Nested route: POST /api/users/{user_id}/address (owner implied by path), creating an address from user_id
-class AddressCreateForUser(BaseModel):
-    address_line1: AddrStr
-    address_line2: Optional[AddrStr] = None
-    apartment_block_number: Optional[AptInt] = None
-    county: CountyStr
-    post_code: PostCodeStr
-
-class AddressUpdate(BaseModel):
-    address_line1: Optional[AddrStr] = None
-    address_line2: Optional[AddrStr] = None
-    apartment_block_number: Optional[AptInt] = None
-    county: Optional[CountyStr] = None
-    post_code: Optional[PostCodeStr] = None
-    resident_id: Optional[int] = None
-
+class MembershipReadWithClub(MembershipRead):
+    club: Optional[ClubRead] = None   
