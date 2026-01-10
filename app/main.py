@@ -113,7 +113,6 @@ def Update_Full_Club_Info(club_id: int, payload: ClubCreate, db: Session = Depen
     commit_or_rollback(db, "Club update failed, maybe duplicate name or descripion")
     return club
 
-
 #DELETE Club 
 @app.delete("/api/clubs/{club_id}", status_code=status.HTTP_204_NO_CONTENT)
 def Delete_Club(club_id: int, db: Session = Depends(get_db)) -> Response:
@@ -124,7 +123,6 @@ def Delete_Club(club_id: int, db: Session = Depends(get_db)) -> Response:
     db.delete(club)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
 
 # GET: All Memberships
 @app.get("/api/memberships", response_model=list[MembershipRead]) 

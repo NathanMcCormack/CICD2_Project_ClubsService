@@ -1,6 +1,4 @@
-# tests/test_clubs.py
 import pytest
-
 
 def club_payload(
     name="ATU Badminton Club",
@@ -15,18 +13,15 @@ def club_payload(
         "membership_cost": cost,
     }
 
-
 def test_health_ok(client):
     r = client.get("/health")
     assert r.status_code == 200
     assert r.json() == {"status": "ok", "service": "clubs"}
 
-
 def test_list_clubs_empty_ok(client):
     r = client.get("/api/clubs")
     assert r.status_code == 200
     assert r.json() == []
-
 
 def test_create_club_ok(client):
     r = client.post("/api/clubs", json=club_payload())
@@ -36,7 +31,6 @@ def test_create_club_ok(client):
     assert data["name"] == "ATU Badminton Club"
     assert data["category"] == "club"
     assert data["membership_cost"] == 20
-
 
 def test_list_clubs_after_create_ok(client):
     client.post(
@@ -64,7 +58,6 @@ def test_list_clubs_after_create_ok(client):
     assert len(r.json()) == 2
     assert r.json()[0]["name"] == "ATU Chess Society"
 
-
 def test_get_club_by_id_ok(client):
     created = client.post("/api/clubs", json=club_payload()).json()
     cid = created["id"]
@@ -75,12 +68,10 @@ def test_get_club_by_id_ok(client):
     assert body["id"] == cid
     assert body["name"] == "ATU Badminton Club"
 
-
 def test_get_club_by_id_404(client):
     r = client.get("/api/clubs/999999")
     assert r.status_code == 404
     assert "not found" in r.json()["detail"].lower()
-
 
 def test_duplicate_name_conflict_409(client):
     client.post(
@@ -104,7 +95,6 @@ def test_duplicate_name_conflict_409(client):
     assert r.status_code == 409
     assert "already exist" in r.json()["detail"].lower() or "duplicate" in r.json()["detail"].lower()
 
-
 def test_duplicate_description_conflict_409(client):
     client.post(
         "/api/clubs",
@@ -127,7 +117,6 @@ def test_duplicate_description_conflict_409(client):
     assert r.status_code == 409
     assert "already exist" in r.json()["detail"].lower() or "duplicate" in r.json()["detail"].lower()
 
-
 def test_patch_club_ok(client):
     created = client.post("/api/clubs", json=club_payload()).json()
     cid = created["id"]
@@ -138,12 +127,10 @@ def test_patch_club_ok(client):
     assert body["id"] == cid
     assert body["membership_cost"] == 25
 
-
 def test_patch_club_404(client):
     r = client.patch("/api/clubs/999999", json={"membership_cost": 25})
     assert r.status_code == 404
     assert "not found" in r.json()["detail"].lower()
-
 
 def test_patch_club_conflict_409(client):
     c1 = client.post(
@@ -169,7 +156,6 @@ def test_patch_club_conflict_409(client):
     assert r.status_code == 409
     assert "duplicate" in r.json()["detail"].lower() or "failed" in r.json()["detail"].lower()
 
-
 def test_put_replace_club_ok(client):
     created = client.post("/api/clubs", json=club_payload()).json()
     cid = created["id"]
@@ -188,12 +174,10 @@ def test_put_replace_club_ok(client):
     assert body["category"] == "society"
     assert body["membership_cost"] == 0
 
-
 def test_put_missing_club_404(client):
     r = client.put("/api/clubs/999999", json=club_payload())
     assert r.status_code == 404
     assert "not found" in r.json()["detail"].lower()
-
 
 def test_put_conflict_409(client):
     c1 = client.post(
@@ -225,7 +209,6 @@ def test_put_conflict_409(client):
     assert r.status_code == 409
     assert "duplicate" in r.json()["detail"].lower() or "failed" in r.json()["detail"].lower()
 
-
 def test_delete_club_then_404(client):
     created = client.post("/api/clubs", json=club_payload()).json()
     cid = created["id"]
@@ -237,9 +220,7 @@ def test_delete_club_then_404(client):
     assert r2.status_code == 404
     assert "not found" in r2.json()["detail"].lower()
 
-
 # --- 422 validation tests (schema-driven) ---
-
 @pytest.mark.parametrize("bad_category", ["team", "societies", "Club", "", "123"])
 def test_create_club_bad_category_422(client, bad_category):
     r = client.post(
@@ -252,7 +233,6 @@ def test_create_club_bad_category_422(client, bad_category):
         ),
     )
     assert r.status_code == 422
-
 
 @pytest.mark.parametrize("bad_cost", [-1, 151])
 def test_create_club_bad_membership_cost_422(client, bad_cost):
@@ -267,7 +247,6 @@ def test_create_club_bad_membership_cost_422(client, bad_cost):
     )
     assert r.status_code == 422
 
-
 @pytest.mark.parametrize("bad_name", ["AB", "", "  "])
 def test_create_club_bad_name_422(client, bad_name):
     r = client.post(
@@ -280,7 +259,6 @@ def test_create_club_bad_name_422(client, bad_name):
         ),
     )
     assert r.status_code == 422
-
 
 @pytest.mark.parametrize("bad_desc", ["Too short", "", "123456789"])
 def test_create_club_bad_description_422(client, bad_desc):

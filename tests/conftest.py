@@ -1,10 +1,8 @@
-# tests/conftest.py
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-
 from app.main import app, get_db
 from app.models import Base
 
@@ -18,13 +16,11 @@ TestingSessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 Base.metadata.create_all(bind=engine)
 
-
 @pytest.fixture(autouse=True)
 def reset_db():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
-
 
 @pytest.fixture
 def client():
