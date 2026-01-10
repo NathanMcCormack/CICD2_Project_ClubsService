@@ -4,8 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError 
 from contextlib import asynccontextmanager 
 from fastapi.middleware.cors import CORSMiddleware 
- 
-from .database import engine, SessionLocal 
+from .database import engine, get_db 
 from .models import Base, ClubDB, MembershipDB
 from .schemas import (
     ClubCreate,
@@ -39,13 +38,6 @@ def commit_or_rollback(db: Session, error_msg: str):
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail=error_msg) #Duplicate info
-
-def get_db(): 
-    db = SessionLocal() 
-    try: 
-        yield db 
-    finally: 
-        db.close() 
 
 # ------------- Health Check ---------------------
 @app.get("/health")

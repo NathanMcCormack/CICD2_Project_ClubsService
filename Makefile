@@ -1,4 +1,3 @@
-
 ClubServiceAPP = app.main:app 
 install: 
 	pip install -r requirements.txt 
