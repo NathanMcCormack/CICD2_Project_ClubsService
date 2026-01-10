@@ -1,6 +1,11 @@
 # tests/test_memberships.py
 import pytest
 
+@pytest.fixture(autouse=True)
+def _mock_user_service(monkeypatch):
+    from app import main
+    monkeypatch.setattr(main, "verify_user_exists", lambda user_id: None)
+
 
 def club_payload(
     name="ATU Badminton Club",

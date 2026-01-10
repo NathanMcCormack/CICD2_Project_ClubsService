@@ -1,3 +1,5 @@
+import os
+import httpx
 from fastapi import FastAPI, Depends, HTTPException, status, Response 
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select 
@@ -38,6 +40,21 @@ def commit_or_rollback(db: Session, error_msg: str):
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail=error_msg) #Duplicate info
+
+#helper function
+def verify_user_exists(user_id: int) -> None:
+    base_url = os.getenv("USER_SERVICE_URL", "http://localhost:8001").rstrip("/")
+    url = f"{base_url}/api/users/{user_id}"
+
+    try:
+        r = httpx.get(url, timeout=2.0)
+    except httpx.RequestError:
+        raise HTTPException(status_code=503, detail="Users service unavailable")
+
+    if r.status_code == 404:
+        raise HTTPException(status_code=404, detail="User not found")
+    if r.status_code != 200:
+        raise HTTPException(status_code=503, detail="Users service unavailable")
 
 # ------------- Health Check ---------------------
 @app.get("/health")
@@ -118,6 +135,7 @@ def List_All_Memberships(db: Session = Depends(get_db)):
 #POST new membership
 @app.post("/api/memberships",response_model=MembershipReadWithClub,status_code=status.HTTP_201_CREATED)
 def create_membership(payload: MembershipCreate, db: Session = Depends(get_db)):
+    verify_user_exists(payload.user_id)
     # Ensure the club exists
     club = db.get(ClubDB, payload.club_id)
     if not club:
